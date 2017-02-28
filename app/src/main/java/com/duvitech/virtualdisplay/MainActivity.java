@@ -29,6 +29,9 @@ import android.widget.Toast;
 import android.widget.ToggleButton;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -45,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private int mDisplayWidth;
     private int mDisplayHeight;
     private boolean mScreenSharing;
+    private File mFile;
 
     private int mScreenDensity;
     private MediaProjectionManager mProjectionManager;
@@ -61,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
     ImageReader.OnImageAvailableListener myImageListener = new ImageReader.OnImageAvailableListener() {
         @Override
         public void onImageAvailable(ImageReader reader) {
-            mBackgroundHandler.post(new ImageGrabber(reader.acquireNextImage()));
+            mBackgroundHandler.post(new ImageGrabber(reader.acquireNextImage(), mFile));
         }
     };
 
@@ -86,7 +90,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        mFile = new File(this.getExternalFilesDir(null), "pic.jpg");
         DisplayMetrics metrics = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(metrics);
         mScreenDensity = metrics.densityDpi;
@@ -254,15 +258,35 @@ public class MainActivity extends AppCompatActivity {
          * The JPEG image
          */
         private final Image mImage;
+        private final File mFile;
 
-        public ImageGrabber(Image image) {
+        public ImageGrabber(Image image, File file) {
             mImage = image;
+            mFile = file;
         }
 
         @Override
         public void run() {
             Log.d(TAG, "Captured Image " + mImage.getWidth() + "x" + mImage.getHeight() + " Format: " + mImage.getFormat());
-            mImage.close();
+            final ByteBuffer buffer = mImage.getPlanes()[0].getBuffer();
+            byte[] bytes = new byte[buffer.remaining()];
+            buffer.get(bytes);
+            FileOutputStream output = null;
+            try {
+                output = new FileOutputStream(mFile);
+                output.write(bytes);
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                mImage.close();
+                if (null != output) {
+                    try {
+                        output.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
         }
     };
 }
