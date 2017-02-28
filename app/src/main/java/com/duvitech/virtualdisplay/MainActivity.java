@@ -3,10 +3,15 @@ package com.duvitech.virtualdisplay;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.graphics.ImageFormat;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
+import android.media.Image;
+import android.media.ImageReader;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
@@ -14,6 +19,7 @@ import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -22,6 +28,7 @@ import android.widget.Spinner;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,28 +54,69 @@ public class MainActivity extends AppCompatActivity {
     private Surface mSurface;
     private SurfaceView mSurfaceView;
     private ToggleButton mToggle;
+    private ImageReader imageReader;
+    private Handler mBackgroundHandler;
+    private HandlerThread mBackgroundThread;
+
+    ImageReader.OnImageAvailableListener myImageListener = new ImageReader.OnImageAvailableListener() {
+        @Override
+        public void onImageAvailable(ImageReader reader) {
+            mBackgroundHandler.post(new ImageGrabber(reader.acquireNextImage()));
+        }
+    };
+
+    protected void startBackgroundThread() {
+        mBackgroundThread = new HandlerThread("Camera Background");
+        mBackgroundThread.start();
+        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+    }
+
+    protected void stopBackgroundThread() {
+        mBackgroundThread.quitSafely();
+        try {
+            mBackgroundThread.join();
+            mBackgroundThread = null;
+            mBackgroundHandler = null;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-
         DisplayMetrics metrics = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(metrics);
         mScreenDensity = metrics.densityDpi;
-        mSurfaceView = (SurfaceView) findViewById(R.id.surface);
-        mSurface = mSurfaceView.getHolder().getSurface();
+        mDisplayWidth = 640;
+        mDisplayHeight = 400;
+        imageReader = ImageReader.newInstance(mDisplayWidth, mDisplayHeight, ImageFormat.JPEG, 15);
+        imageReader.setOnImageAvailableListener(myImageListener, mBackgroundHandler);
+        mSurface = imageReader.getSurface();
+
+        //mSurfaceView = (SurfaceView) findViewById(R.id.surface);
+        //mSurface = mSurfaceView.getHolder().getSurface();
         mProjectionManager =
                 (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        ArrayAdapter<Resolution> arrayAdapter = new ArrayAdapter<Resolution>(
-                this, android.R.layout.simple_list_item_1, RESOLUTIONS);
-        Spinner s = (Spinner) findViewById(R.id.spinner);
-        s.setAdapter(arrayAdapter);
-        s.setOnItemSelectedListener(new ResolutionSelector());
-        s.setSelection(0);
+
         mToggle = (ToggleButton) findViewById(R.id.screen_sharing_toggle);
 
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Log.e(TAG, "onResume");
+        startBackgroundThread();
+    }
+
+    @Override
+    public void onPause() {
+        Log.d(TAG, "onPause");
+        stopBackgroundThread();
+        super.onPause();
     }
 
     @Override
@@ -137,7 +185,6 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onItemSelected(AdapterView<?> parent, View v, int pos, long id) {
             Resolution r = (Resolution) parent.getItemAtPosition(pos);
-            ViewGroup.LayoutParams lp = mSurfaceView.getLayoutParams();
             if (getResources().getConfiguration().orientation
                     == Configuration.ORIENTATION_LANDSCAPE) {
                 mDisplayHeight = r.y;
@@ -146,9 +193,6 @@ public class MainActivity extends AppCompatActivity {
                 mDisplayHeight = r.x;
                 mDisplayWidth = r.y;
             }
-            lp.height = mDisplayHeight;
-            lp.width = mDisplayWidth;
-            mSurfaceView.setLayoutParams(lp);
         }
         @Override
         public void onNothingSelected(AdapterView<?> parent) { /* Ignore */ }
@@ -203,4 +247,22 @@ public class MainActivity extends AppCompatActivity {
             return x + "x" + y;
         }
     }
+
+
+    private static class ImageGrabber implements Runnable {
+        /**
+         * The JPEG image
+         */
+        private final Image mImage;
+
+        public ImageGrabber(Image image) {
+            mImage = image;
+        }
+
+        @Override
+        public void run() {
+            Log.d(TAG, "Captured Image " + mImage.getWidth() + "x" + mImage.getHeight() + " Format: " + mImage.getFormat());
+            mImage.close();
+        }
+    };
 }
