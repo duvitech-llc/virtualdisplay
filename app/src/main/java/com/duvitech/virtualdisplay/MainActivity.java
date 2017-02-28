@@ -3,7 +3,9 @@ package com.duvitech.virtualdisplay;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
+import android.graphics.PixelFormat;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.media.Image;
@@ -96,7 +98,7 @@ public class MainActivity extends AppCompatActivity {
         mScreenDensity = metrics.densityDpi;
         mDisplayWidth = 640;
         mDisplayHeight = 400;
-        imageReader = ImageReader.newInstance(mDisplayWidth, mDisplayHeight, ImageFormat.JPEG, 15);
+        imageReader = ImageReader.newInstance(mDisplayWidth, mDisplayHeight, PixelFormat.RGBA_8888, 15);
         imageReader.setOnImageAvailableListener(myImageListener, mBackgroundHandler);
         mSurface = imageReader.getSurface();
 
@@ -269,16 +271,38 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             Log.d(TAG, "Captured Image " + mImage.getWidth() + "x" + mImage.getHeight() + " Format: " + mImage.getFormat());
             final ByteBuffer buffer = mImage.getPlanes()[0].getBuffer();
-            byte[] bytes = new byte[buffer.remaining()];
-            buffer.get(bytes);
+            int width = mImage.getWidth();
+            int height = mImage.getHeight();
+            int pixelStride =  mImage.getPlanes()[0].getPixelStride();
+            int rowStride =  mImage.getPlanes()[0].getRowStride();
+            int rowPadding = rowStride - pixelStride * width;
+
+            Bitmap bitmap = null;
             FileOutputStream output = null;
             try {
+                byte[] newData = new byte[width * height * 4];
+
+                int offset = 0;
+                bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+
+                for (int i = 0; i < height; ++i) {
+                    for (int j = 0; j < width; ++j) {
+                        int pixel = 0;
+                        pixel |= (buffer.get(offset) & 0xff) << 16;     // R
+                        pixel |= (buffer.get(offset + 1) & 0xff) << 8;  // G
+                        pixel |= (buffer.get(offset + 2) & 0xff);       // B
+                        pixel |= (buffer.get(offset + 3) & 0xff) << 24; // A
+                        bitmap.setPixel(j, i, pixel);
+                        offset += pixelStride;
+                    }
+                    offset += rowPadding;
+                }
+
                 output = new FileOutputStream(mFile);
-                output.write(bytes);
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
             } catch (IOException e) {
                 e.printStackTrace();
             } finally {
-                mImage.close();
                 if (null != output) {
                     try {
                         output.close();
@@ -286,6 +310,8 @@ public class MainActivity extends AppCompatActivity {
                         e.printStackTrace();
                     }
                 }
+
+                mImage.close();
             }
         }
     };
