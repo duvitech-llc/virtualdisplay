@@ -3,7 +3,9 @@ package com.duvitech.virtualdisplay;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
+import android.graphics.PixelFormat;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.media.Image;
@@ -96,7 +98,7 @@ public class MainActivity extends AppCompatActivity {
         mScreenDensity = metrics.densityDpi;
         mDisplayWidth = 640;
         mDisplayHeight = 400;
-        imageReader = ImageReader.newInstance(mDisplayWidth, mDisplayHeight, ImageFormat.JPEG, 15);
+        imageReader = ImageReader.newInstance(mDisplayWidth, mDisplayHeight, PixelFormat.RGBA_8888, 2);
         imageReader.setOnImageAvailableListener(myImageListener, mBackgroundHandler);
         mSurface = imageReader.getSurface();
 
@@ -269,12 +271,17 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             Log.d(TAG, "Captured Image " + mImage.getWidth() + "x" + mImage.getHeight() + " Format: " + mImage.getFormat());
             final ByteBuffer buffer = mImage.getPlanes()[0].getBuffer();
-            byte[] bytes = new byte[buffer.remaining()];
-            buffer.get(bytes);
+
+            int width = mImage.getWidth();
+            int height = mImage.getHeight();
+
+            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            bitmap.copyPixelsFromBuffer(buffer);
             FileOutputStream output = null;
             try {
                 output = new FileOutputStream(mFile);
-                output.write(bytes);
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
+
             } catch (IOException e) {
                 e.printStackTrace();
             } finally {
