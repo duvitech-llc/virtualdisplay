@@ -18,6 +18,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Display;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -40,6 +41,7 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MediaProjectionDemo";
     private static final int PERMISSION_CODE = 1;
+    private static final int FRAMERATE = 30;
     private static final List<Resolution> RESOLUTIONS = new ArrayList<Resolution>() {{
         add(new Resolution(640,400));
     }};
@@ -50,6 +52,7 @@ public class MainActivity extends AppCompatActivity {
     private File mFile;
 
     private int mScreenDensity;
+    private DisplayManager mDisplayManager;
     private MediaProjectionManager mProjectionManager;
     private MediaProjection mMediaProjection;
 
@@ -95,6 +98,9 @@ public class MainActivity extends AppCompatActivity {
         mScreenDensity = metrics.densityDpi;
         mDisplayWidth = 640;
         mDisplayHeight = 400;
+
+        mDisplayManager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
+        mDisplayManager.registerDisplayListener(mDisplayListener, null);
         imageReader = ImageReader.newInstance(mDisplayWidth, mDisplayHeight, PixelFormat.RGBA_8888, 8);
         imageReader.setOnImageAvailableListener(myImageListener, mBackgroundHandler);
         mSurface = imageReader.getSurface();
@@ -181,7 +187,7 @@ public class MainActivity extends AppCompatActivity {
     private VirtualDisplay createVirtualDisplay() {
         return mMediaProjection.createVirtualDisplay("ScreenSharingDemo",
                 mDisplayWidth, mDisplayHeight, mScreenDensity,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION,
                 mSurface, null /*Callbacks*/, null /*Handler*/);
     }
     private class ResolutionSelector implements Spinner.OnItemSelectedListener {
@@ -294,6 +300,49 @@ public class MainActivity extends AppCompatActivity {
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
+                }
+            }
+        }
+    };
+
+    private final DisplayManager.DisplayListener mDisplayListener = new DisplayManager.DisplayListener() {
+
+        private boolean mNewDisplayAdded = false;
+        private int mCurrentDisplayId = -1;
+        private TestDisplay mPresentation;
+
+        @Override
+        public void onDisplayAdded(int i) {
+            Log.d(TAG, "onDisplayAdded id=" + i);
+            if (!mNewDisplayAdded && mCurrentDisplayId == -1) {
+                mNewDisplayAdded = true;
+                mCurrentDisplayId = i;
+            }
+        }
+
+        @Override
+        public void onDisplayRemoved(int i) {
+            Log.d(TAG, "onDisplayRemoved id=" + i);
+            if (mCurrentDisplayId == i) {
+                mNewDisplayAdded = false;
+                mCurrentDisplayId = -1;
+                if (mPresentation != null) {
+                    mPresentation.dismiss();
+                    mPresentation = null;
+                }
+            }
+        }
+
+        @Override
+        public void onDisplayChanged(int i) {
+            Log.d(TAG, "onDisplayChanged id=" + i);
+            if (mCurrentDisplayId == i) {
+                if (mNewDisplayAdded) {
+                    // create a presentation
+                   mNewDisplayAdded = false;
+                   Display display = mDisplayManager.getDisplay(i);
+                   mPresentation = new TestDisplay(MainActivity.this, display);
+                   mPresentation.show();
                 }
             }
         }
