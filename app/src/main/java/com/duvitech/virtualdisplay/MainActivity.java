@@ -41,10 +41,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MediaProjectionDemo";
     private static final int PERMISSION_CODE = 1;
     private static final List<Resolution> RESOLUTIONS = new ArrayList<Resolution>() {{
-        add(new Resolution(640,360));
-        add(new Resolution(960,540));
-        add(new Resolution(1366,768));
-        add(new Resolution(1600,900));
+        add(new Resolution(640,400));
     }};
 
     private int mDisplayWidth;
@@ -98,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
         mScreenDensity = metrics.densityDpi;
         mDisplayWidth = 640;
         mDisplayHeight = 400;
-        imageReader = ImageReader.newInstance(mDisplayWidth, mDisplayHeight, PixelFormat.RGBA_8888, 2);
+        imageReader = ImageReader.newInstance(mDisplayWidth, mDisplayHeight, PixelFormat.RGBA_8888, 8);
         imageReader.setOnImageAvailableListener(myImageListener, mBackgroundHandler);
         mSurface = imageReader.getSurface();
 
