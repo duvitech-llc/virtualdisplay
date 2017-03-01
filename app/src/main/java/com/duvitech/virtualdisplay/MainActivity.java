@@ -261,6 +261,7 @@ public class MainActivity extends AppCompatActivity {
          */
         private final Image mImage;
         private final File mFile;
+        private Bitmap bitmap;
 
         public ImageGrabber(Image image, File file) {
             mImage = image;
@@ -274,8 +275,12 @@ public class MainActivity extends AppCompatActivity {
 
             int width = mImage.getWidth();
             int height = mImage.getHeight();
+            int pixelStride =  mImage.getPlanes()[0].getPixelStride();
+            int rowStride =  mImage.getPlanes()[0].getRowStride();
+            int rowPadding = rowStride - pixelStride * width;
 
-            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+
+            bitmap = Bitmap.createBitmap(width + rowPadding / pixelStride, height, Bitmap.Config.ARGB_8888);
             bitmap.copyPixelsFromBuffer(buffer);
             FileOutputStream output = null;
             try {
